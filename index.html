@@ -7,11 +7,10 @@
     <!-- Google Fonts & Tailwind CSS -->
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería jsQR para lectura de códigos QR desde la cámara -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
-        .bg-gob-primary { background-color: #691C32; } /* Guinda institucional */
+        .bg-gob-primary { background-color: #691C32; }
         .text-gob-primary { color: #691C32; }
         .border-gob-primary { border-color: #691C32; }
         .btn-gob { background-color: #5b1328; transition: background-color 0.2s; }
@@ -29,7 +28,7 @@
                 </div>
                 <div>
                     <h1 class="text-lg font-semibold leading-tight">Validador de Vigencia - SARE 1523</h1>
-                    <p class="text-xs text-red-200">Módulo de Consulta y Estatus de Tarjetas</p>
+                    <p class="text-xs text-red-200">Módulo de Consulta Directa</p>
                 </div>
             </div>
             <button onclick="limpiarFormulario()" class="bg-amber-500 hover:bg-amber-600 text-white font-medium text-xs px-4 py-2 rounded shadow">
@@ -43,8 +42,8 @@
 
         <!-- Tarjeta de Consulta -->
         <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-gob-primary">
-            <h2 class="text-lg font-semibold text-gray-800 mb-1">Consulta por CURP (Verificación de Vigencia)</h2>
-            <p class="text-xs text-gray-500 mb-4">Escriba, pegue o escanee el CURP del beneficiario (Exactamente 18 caracteres):</p>
+            <h2 class="text-lg font-semibold text-gray-800 mb-1">Consulta por CURP</h2>
+            <p class="text-xs text-gray-500 mb-4">Escriba, pegue o escanee el CURP (Exactamente 18 caracteres):</p>
 
             <div class="space-y-4">
                 <div class="flex flex-col sm:flex-row gap-3">
@@ -83,24 +82,15 @@
         <!-- Consola de Depuración -->
         <div class="bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl p-4 shadow-inner overflow-x-auto">
             <p class="text-slate-400 mb-1">🔍 Consola de Depuración:</p>
-            <div id="consoleOutput">Esperando consulta de CURP para verificar vigencia...</div>
+            <div id="consoleOutput">Esperando consulta de CURP...</div>
         </div>
 
-        <!-- Resultado / Información de Vigencia -->
-        <div id="resultadoCard" class="bg-white rounded-xl shadow-md p-6 border-l-8 border-amber-500 hidden relative">
-            <h3 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-4">Resultado de la Verificación</h3>
+        <!-- Resultado -->
+        <div id="resultadoCard" class="bg-white rounded-xl shadow-md p-6 border-l-8 border-gob-primary hidden relative">
+            <h3 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-4">Resultado de la Consulta</h3>
             
             <div id="resultadoContent" class="space-y-3 text-sm text-gray-700">
-                <!-- Se llena dinámicamente con los datos de vigencia, detalle y programa -->
-            </div>
-
-            <!-- Contenedor del QR Condicional / Alerta -->
-            <div id="qrContainer" class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center hidden space-y-2">
-                <p class="text-xs font-bold text-gray-700 uppercase">⚠️ Aviso Importante / Código Requerido:</p>
-                <div class="flex justify-center">
-                    <img id="qrImage" src="qr_especial.png" alt="Código QR institucional" class="w-48 h-48 object-contain border-2 border-amber-500 rounded-lg shadow-md">
-                </div>
-                <p class="text-xs text-slate-500">Escanee este código para continuar con el trámite correspondiente.</p>
+                <!-- Se llena directamente con los datos de las columnas -->
             </div>
 
             <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end">
@@ -117,9 +107,9 @@
         Coordinación Nacional de Becas para el Bienestar • Región 1523 (SARE Tultitlán)
     </footer>
 
-    <!-- Script General y de Conexión -->
+    <!-- Script -->
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbyvZcWLO5RNLZPZP4tLJFpDdVcKxptr8YVGyk8z5Wv0O-6yJ-gSWD_DjHno8aI-MFz46g/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbzb5rIiiU5Gbv5RHXcz4bjsUW9fJtbxQK-p0oz8Fjf0YzxcFRyk3smlY40-4B1sxR6uFA/exec";
 
         let videoStream = null;
         let scanningInterval = null;
@@ -129,7 +119,6 @@
             const consoleOut = document.getElementById('consoleOutput');
             const resultadoCard = document.getElementById('resultadoCard');
             const resultadoContent = document.getElementById('resultadoContent');
-            const qrContainer = document.getElementById('qrContainer');
 
             if (curp.length !== 18) {
                 alert("El CURP debe contener exactamente 18 caracteres alfanuméricos.");
@@ -137,9 +126,8 @@
                 return;
             }
 
-            consoleOut.innerText = `Enviando consulta de vigencia para CURP: ${curp}...`;
+            consoleOut.innerText = `Enviando consulta para CURP: ${curp}...`;
             resultadoCard.classList.add('hidden');
-            qrContainer.classList.add('hidden');
 
             try {
                 const response = await fetch(`${API_URL}?curp=${encodeURIComponent(curp)}`);
@@ -149,31 +137,18 @@
                 resultadoCard.classList.remove('hidden');
 
                 if (data.encontrado) {
-                    resultadoCard.classList.remove('border-red-500');
-                    resultadoCard.classList.add('border-emerald-500');
-                    
                     resultadoContent.innerHTML = `
                         <p><strong>CURP:</strong> ${data.curp}</p>
-                        <p><strong>PROGRAMA:</strong> ${data.programa || "N/D"}</p>
-                        <p><strong>MUNICIPIO / ESCUELA:</strong> ${data.municipio || "N/D"}</p>
-                        <p><strong>SITUACIÓN DE VIGENCIA (Col. L):</strong> <span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">${data.vigencia || "N/D"}</span></p>
-                        <p><strong>RESULTADO ATENCIÓN (Col. M):</strong> <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">${data.resultadoAtencion || "N/D"}</span></p>
-                        <p class="text-base mt-2"><strong>ESTATUS / DICTAMEN:</strong> <span class="bg-emerald-100 text-emerald-800 font-extrabold px-2 py-1 rounded">${data.solucion || "Verificado"}</span></p>
+                        <p><strong>PROGRAMA (Col. N):</strong> ${data.programa}</p>
+                        <p><strong>MUNICIPIO (Col. C):</strong> ${data.municipio}</p>
+                        <p><strong>SITUACIÓN DE VIGENCIA (Col. L):</strong> <span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">${data.vigencia}</span></p>
+                        <p><strong>RESULTADO ATENCIÓN (Col. M):</strong> <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">${data.resultadoAtencion}</span></p>
                     `;
-
-                    // Mostrar QR condicional si aplica
-                    if (data.mostrarQr === "SÍ" || data.mostrarQr === "SI") {
-                        qrContainer.classList.remove('hidden');
-                    }
-
                 } else {
-                    resultadoCard.classList.remove('border-emerald-500');
-                    resultadoCard.classList.add('border-red-500');
-
                     resultadoContent.innerHTML = `
                         <div class="bg-red-50 border border-red-200 p-4 rounded-lg text-red-700">
-                            <p class="font-bold text-base mb-1">❌ Registro no encontrado o No Vigente</p>
-                            <p>${data.mensaje || "El CURP consultado no cuenta con un registro activo en este padrón o presenta inconsistencias."}</p>
+                            <p class="font-bold text-base mb-1">❌ No encontrado</p>
+                            <p>${data.mensaje || "El CURP no se encuentra registrado en el padrón."}</p>
                         </div>
                     `;
                 }
@@ -181,7 +156,7 @@
             } catch (error) {
                 consoleOut.innerText = `Error de conexión: ${error.message}`;
                 resultadoCard.classList.add('hidden');
-                resultadoContent.innerHTML = `<p class="text-red-600 font-bold">Error al conectar con Google Sheets. Verifique la red o permisos.</p>`;
+                resultadoContent.innerHTML = `<p class="text-red-600 font-bold">Error al conectar con Google Sheets.</p>`;
             }
         }
 
@@ -257,9 +232,8 @@
 
         function limpiarFormulario() {
             document.getElementById('curpInput').value = '';
-            document.getElementById('consoleOutput').innerText = 'Consola limpia. Esperando consulta de CURP para verificar vigencia...';
+            document.getElementById('consoleOutput').innerText = 'Consola limpia. Esperando consulta...';
             document.getElementById('resultadoCard').classList.add('hidden');
-            document.getElementById('qrContainer').classList.add('hidden');
             document.getElementById('curpInput').focus();
         }
     </script>
