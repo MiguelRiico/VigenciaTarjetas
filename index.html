@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de Vigencia - Servidor Educativo SARE 1523</title>
+    <!-- Google Fonts & Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería jsQR para lectura de códigos QR desde la cámara -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body { font-family: 'Public Sans', sans-serif; background-color: #f8fafc; }
+        .bg-gob-primary { background-color: #691C32; } /* Guinda institucional */
+        .text-gob-primary { color: #691C32; }
+        .border-gob-primary { border-color: #691C32; }
+        .btn-gob { background-color: #5b1328; transition: background-color 0.2s; }
+        .btn-gob:hover { background-color: #440e1e; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- HEADER INSTITUCIONAL -->
+    <header class="bg-gob-primary text-white shadow-md">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <div class="bg-white text-gob-primary font-bold px-3 py-2 text-xs rounded shadow">
+                    GOBIERNO DE MÉXICO
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold leading-tight">Validador de Vigencia - SARE 1523</h1>
+                    <p class="text-xs text-red-200">Módulo de Consulta y Estatus de Tarjetas</p>
+                </div>
+            </div>
+            <button onclick="limpiarFormulario()" class="bg-amber-500 hover:bg-amber-600 text-white font-medium text-xs px-4 py-2 rounded shadow">
+                Reiniciar
+            </button>
+        </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="max-w-4xl w-full mx-auto p-4 flex-grow space-y-6">
+
+        <!-- Tarjeta de Consulta -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-gob-primary">
+            <h2 class="text-lg font-semibold text-gray-800 mb-1">Consulta por CURP (Verificación de Vigencia)</h2>
+            <p class="text-xs text-gray-500 mb-4">Escriba, pegue o escanee el CURP del beneficiario (Exactamente 18 caracteres):</p>
+
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="curpInput" maxlength="18" placeholder="Ingrese los 18 caracteres del CURP" 
+                        oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')"
+                        class="flex-grow uppercase tracking-wider font-mono border border-gray-300 rounded-lg px-4 py-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#691C32]">
+                    <div class="flex gap-2">
+                        <button onclick="limpiarFormulario()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-3 rounded-lg text-sm transition">
+                            Limpiar
+                        </button>
+                        <button onclick="consultarCurp()" class="btn-gob text-white font-medium px-6 py-3 rounded-lg text-sm shadow">
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="iniciarEscanner()" class="w-full bg-[#b2571c] hover:bg-[#9a4b17] text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center space-x-2 shadow transition">
+                    <span>📷 Escanear Código QR con Cámara</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL DE CÁMARA -->
+        <div id="scannerContainer" class="bg-black rounded-xl p-4 shadow-inner text-center hidden space-y-3">
+            <div class="flex justify-between items-center text-white px-2">
+                <span class="text-xs font-mono">Apunta la cámara al código QR del CURP</span>
+                <button onclick="detenerEscanner()" class="bg-red-600 hover:bg-red-700 text-xs px-3 py-1 rounded font-bold">Cerrar Cámara</button>
+            </div>
+            <div class="relative max-w-sm mx-auto overflow-hidden rounded-lg border-2 border-amber-500">
+                <video id="videoPreview" class="w-full h-64 object-cover"></video>
+            </div>
+            <p id="scannerStatus" class="text-xs text-amber-400 font-mono">Buscando código QR...</p>
+            <canvas id="canvasCanvas" class="hidden"></canvas>
+        </div>
+
+        <!-- Consola de Depuración -->
+        <div class="bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl p-4 shadow-inner overflow-x-auto">
+            <p class="text-slate-400 mb-1">🔍 Consola de Depuración:</p>
+            <div id="consoleOutput">Esperando consulta de CURP para verificar vigencia...</div>
+        </div>
+
+        <!-- Resultado / Información de Vigencia -->
+        <div id="resultadoCard" class="bg-white rounded-xl shadow-md p-6 border-l-8 border-amber-500 hidden relative">
+            <h3 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-4">Resultado de la Verificación</h3>
+            
+            <div id="resultadoContent" class="space-y-3 text-sm text-gray-700">
+                <!-- Se llena dinámicamente con los datos de vigencia, detalle y programa -->
+            </div>
+
+            <!-- Contenedor del QR Condicional / Alerta -->
+            <div id="qrContainer" class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center hidden space-y-2">
+                <p class="text-xs font-bold text-gray-700 uppercase">⚠️ Aviso Importante / Código Requerido:</p>
+                <div class="flex justify-center">
+                    <img id="qrImage" src="qr_especial.png" alt="Código QR institucional" class="w-48 h-48 object-contain border-2 border-amber-500 rounded-lg shadow-md">
+                </div>
+                <p class="text-xs text-slate-500">Escanee este código para continuar con el trámite correspondiente.</p>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end">
+                <button onclick="limpiarFormulario()" class="btn-gob text-white text-xs font-semibold px-5 py-2.5 rounded-lg shadow">
+                    Consultar nuevo CURP
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        Coordinación Nacional de Becas para el Bienestar • Región 1523 (SARE Tultitlán)
+    </footer>
+
+    <!-- Script General y de Conexión -->
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbyvZcWLO5RNLZPZP4tLJFpDdVcKxptr8YVGyk8z5Wv0O-6yJ-gSWD_DjHno8aI-MFz46g/exec";
+
+        let videoStream = null;
+        let scanningInterval = null;
+
+        async function consultarCurp() {
+            let curp = document.getElementById('curpInput').value.trim().toUpperCase();
+            const consoleOut = document.getElementById('consoleOutput');
+            const resultadoCard = document.getElementById('resultadoCard');
+            const resultadoContent = document.getElementById('resultadoContent');
+            const qrContainer = document.getElementById('qrContainer');
+
+            if (curp.length !== 18) {
+                alert("El CURP debe contener exactamente 18 caracteres alfanuméricos.");
+                document.getElementById('curpInput').focus();
+                return;
+            }
+
+            consoleOut.innerText = `Enviando consulta de vigencia para CURP: ${curp}...`;
+            resultadoCard.classList.add('hidden');
+            qrContainer.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}?curp=${encodeURIComponent(curp)}`);
+                const data = await response.json();
+
+                consoleOut.innerText = `Respuesta recibida:\n${JSON.stringify(data, null, 2)}`;
+                resultadoCard.classList.remove('hidden');
+
+                if (data.encontrado) {
+                    resultadoCard.classList.remove('border-red-500');
+                    resultadoCard.classList.add('border-emerald-500');
+                    
+                    resultadoContent.innerHTML = `
+                        <p><strong>CURP:</strong> ${data.curp}</p>
+                        <p><strong>PROGRAMA:</strong> ${data.programa || "N/D"}</p>
+                        <p><strong>MUNICIPIO / ESCUELA:</strong> ${data.municipio || "N/D"}</p>
+                        <p><strong>SITUACIÓN DE VIGENCIA (Col. L):</strong> <span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">${data.vigencia || "N/D"}</span></p>
+                        <p><strong>RESULTADO ATENCIÓN (Col. M):</strong> <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">${data.resultadoAtencion || "N/D"}</span></p>
+                        <p class="text-base mt-2"><strong>ESTATUS / DICTAMEN:</strong> <span class="bg-emerald-100 text-emerald-800 font-extrabold px-2 py-1 rounded">${data.solucion || "Verificado"}</span></p>
+                    `;
+
+                    // Mostrar QR condicional si aplica
+                    if (data.mostrarQr === "SÍ" || data.mostrarQr === "SI") {
+                        qrContainer.classList.remove('hidden');
+                    }
+
+                } else {
+                    resultadoCard.classList.remove('border-emerald-500');
+                    resultadoCard.classList.add('border-red-500');
+
+                    resultadoContent.innerHTML = `
+                        <div class="bg-red-50 border border-red-200 p-4 rounded-lg text-red-700">
+                            <p class="font-bold text-base mb-1">❌ Registro no encontrado o No Vigente</p>
+                            <p>${data.mensaje || "El CURP consultado no cuenta con un registro activo en este padrón o presenta inconsistencias."}</p>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                consoleOut.innerText = `Error de conexión: ${error.message}`;
+                resultadoCard.classList.add('hidden');
+                resultadoContent.innerHTML = `<p class="text-red-600 font-bold">Error al conectar con Google Sheets. Verifique la red o permisos.</p>`;
+            }
+        }
+
+        async function iniciarEscanner() {
+            const container = document.getElementById('scannerContainer');
+            const video = document.getElementById('videoPreview');
+            const status = document.getElementById('scannerStatus');
+            
+            container.classList.remove('hidden');
+            status.innerText = "Iniciando cámara trasera...";
+
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = videoStream;
+                video.setAttribute("playsinline", true);
+                video.play();
+
+                requestAnimationFrame(escanearFrame);
+            } catch (err) {
+                status.innerText = "Error: No se pudo acceder a la cámara.";
+                alert("Verifique los permisos de cámara en su navegador.");
+            }
+        }
+
+        function escanearFrame() {
+            const video = document.getElementById('videoPreview');
+            const canvasElement = document.getElementById('canvasCanvas');
+            const status = document.getElementById('scannerStatus');
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                const canvas = canvasElement.getContext("2d");
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    let textoEscaneado = code.data.trim().toUpperCase();
+                    status.innerText = "¡Código detectado con éxito!";
+                    
+                    if (textoEscaneado.length >= 18) {
+                        let curpExtraido = textoEscaneado.substring(0, 18);
+                        document.getElementById('curpInput').value = curpExtraido;
+                        detenerEscanner();
+                        consultarCurp();
+                        return;
+                    } else {
+                        status.innerText = "El QR escaneado tiene menos de 18 caracteres.";
+                    }
+                }
+            }
+            if (videoStream) {
+                scanningInterval = requestAnimationFrame(escanearFrame);
+            }
+        }
+
+        function detenerEscanner() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            if (scanningInterval) {
+                cancelAnimationFrame(scanningInterval);
+            }
+            document.getElementById('scannerContainer').classList.add('hidden');
+        }
+
+        function limpiarFormulario() {
+            document.getElementById('curpInput').value = '';
+            document.getElementById('consoleOutput').innerText = 'Consola limpia. Esperando consulta de CURP para verificar vigencia...';
+            document.getElementById('resultadoCard').classList.add('hidden');
+            document.getElementById('qrContainer').classList.add('hidden');
+            document.getElementById('curpInput').focus();
+        }
+    </script>
+</body>
+</html>
